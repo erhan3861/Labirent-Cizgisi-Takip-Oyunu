@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Neon Patika Oyunu</title>
+<style>
+:root{
+    --bg:#0b0f26; --panel:#141a3f; --panel2:#192159; --ink:#eef0ff; --muted:#a9add6;
+    --accent:#ffde59; --gold:#ffde59; --good:#2ecc71; --danger:#e74c3c; --primary: #6c5dd3;
+}
+*{box-sizing:border-box;user-select:none}
+html,body{
+    height:100%;margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+    overflow:hidden;
+}
+#game-container{
+    position:relative;
+    width: 100vw;
+    height: 100vh;
+    background:radial-gradient(circle,var(--panel),var(--bg));
+    border: none;
+    border-radius: 0;
+    box-shadow: inset 0 0 25px rgba(0,0,0,.6);
+    overflow:hidden;
+    display:flex;flex-direction:column;
+}
+.ui-bar{
+    padding:10px 15px;
+    background:rgba(0,0,0,.3);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-shrink:0;
+    border-bottom:2px solid rgba(108,93,211,.3);
+    gap: 15px;
+}
+.ui-left-group, .ui-right-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.ui-right-group { gap: 10px; }
+.stats {
+    display: flex;
+    gap: 20px;
+    font-size:clamp(1.2rem, 3vw, 1.6rem);
+    font-weight:700;
+}
+.btn{
+    background:linear-gradient(180deg,var(--primary),#4e42c2);
+    border:1px solid rgba(255,255,255,.15); color:#fff; padding:8px 12px;
+    border-radius:10px; cursor:pointer; font-weight:700; font-size:.9rem;
+    box-shadow:0 5px 15px rgba(0,0,0,.3); transition:transform .1s, box-shadow .2s;
+    display:flex; align-items:center; gap:8px;
+}
+.btn:hover{box-shadow:0 8px 20px rgba(0,0,0,.4); transform:translateY(-1px)}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:linear-gradient(180deg,#2b2f55,#1d2147)}
+.btn.good{background:linear-gradient(180deg,var(--good),#177845)}
+
+/* Maximize/minimize butonu */
+#ui-fullscreen-btn {
+    width: 50px; height: 50px; border-radius: 12px;
+    display: grid; place-items: center;
+    background:linear-gradient(180deg,#2b2f55,#1d2147);
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:0 5px 18px rgba(0,0,0,.4);
+    overflow: visible; /* 3x ikon taşarsa kesilmesin */
+}
+#ui-fullscreen-btn .icon img { width: 36px; height: 36px; position: relative;right:5px;} 
+/* #icon-expand { width: 78px; height: 78px; display:block; transform-origin:center; } 3x büyüt */
+
+/* Bilgi paneli */
+.info-panel {
+    text-align: center;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.2);
+    color: var(--gold);
+    font-weight: 600;
+    font-size: 1.5rem;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 5px 10px rgba(0,0,0,.2);
+    margin: 0 auto 10px auto;
+    width: max-content;
+    flex-shrink: 0;
+    text-shadow: 0 0 5px rgba(255,222,89,.5);
+}
+#game-area {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    min-height: 0;
+    cursor: crosshair;
+    position: relative; /* toast için referans */
+}
+#maze-svg {
+    width: 100%;
+    height: 100%;
+    max-width: 1000px;
+    max-height: 600px;
+}
+.path-hitbox {
+    stroke: transparent;
+    stroke-width: 45;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    pointer-events: stroke;
+}
+.path-visual {
+    stroke: var(--accent);
+    stroke-width: 12;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    filter: drop-shadow(0 0 8px var(--accent));
+    pointer-events: none;
+    transition: stroke 0.3s ease;
+}
+.game-lost .path-visual {
+    stroke: var(--danger);
+    filter: drop-shadow(0 0 8px var(--danger));
+}
+.game-won .path-visual {
+    stroke: var(--good);
+    filter: drop-shadow(0 0 8px var(--good));
+}
+#start-point, #finish-point { transition: fill 0.3s ease; }
+#start-point { fill: var(--good); }
+#finish-point { fill: var(--primary); }
+#start-point.active { animation: pulse 1.5s infinite; }
+@keyframes pulse {
+    0% { r: 15; opacity: 1; }
+    50% { r: 18; opacity: 0.8; }
+    100% { r: 15; opacity: 1; }
+}
+
+/* Modal */
+.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(11,15,38,.7); backdrop-filter:blur(8px); z-index:1000}
+.modal.active{display:flex}
+.modal-content{
+    position: relative;
+    background:linear-gradient(160deg,var(--panel),var(--panel2));
+    border:1px solid var(--accent); padding:30px 40px; border-radius:16px;
+    max-width:520px; width:90%; text-align:center; box-shadow:0 10px 50px rgba(0,0,0,.5);
+}
+.modal-content h2{margin:0 0 10px;font-size:2rem;color:var(--gold)}
+.modal-content p{color:var(--muted);font-size:1.05rem; line-height: 1.6;}
+.pass-box{
+    display:flex; gap:12px; align-items:center; justify-content:center; margin:20px 0;
+    background:rgba(0,0,0,.3); padding:10px 12px; border-radius:12px;
+}
+.pass{font-size:1.15rem;font-weight:900;color:var(--gold);letter-spacing:2px;text-shadow:0 0 8px var(--gold)}
+.close-modal-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+.close-modal-btn:hover { color: var(--ink); transform: scale(1.1); }
+
+/* Mor nokta şifre toast'ı */
+#pw-toast {
+  position: absolute;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(20, 26, 63, 0.9);
+  border: 1px solid rgba(255, 222, 89, .6);
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(0,0,0,.45), 0 0 20px rgba(255,222,89,.35);
+  pointer-events: none;
+  z-index: 5;
+  transform: translate(-50%, -140%);
+  opacity: 1;
+  transition: opacity .25s ease, transform .25s ease;
+}
+#pw-toast .k {
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(255,222,89,.8);
+  letter-spacing: 1px;
+}
+#pw-toast.hide {
+  opacity: 0;
+  transform: translate(-50%, -160%);
+}
+</style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="ui-bar">
+        <div class="ui-left-group">
+             <div class="stats">
+                <div id="timer-display">Süre: 0.00</div>
+                <div id="best-time-display">En İyi: --.--</div>
+            </div>
+        </div>
+        <div class="ui-right-group">
+            <button class="btn good" id="start-btn">YENİDEN BAŞLA</button>
+            <button id="ui-fullscreen-btn" class="btn ghost" title="Tam Ekran Modu">
+                <span class="icon">
+                    <img id="icon-expand" src="https://raw.githubusercontent.com/erhan3861/assets/main/maximize.png" alt="Tam Ekran Yap"/>
+                    <img id="icon-compress" src="https://raw.githubusercontent.com/erhan3861/assets/main/minimize.png" alt="Tam Ekrandan Çık" style="display:none;"/>
+                </span>
+            </button>
+        </div>
+    </div>
+    <div class="info-panel">
+       Fareni neon patikadan ayırmadan <span style="color:var(--good)">Yeşil</span> noktadan <span style="color:var(--primary)">Mor</span> noktaya ulaştır!
+    </div>
+    <div id="game-area">
+        <svg id="maze-svg" viewBox="0 0 1000 600">
+            <defs>
+                <path id="maze-path-d" d="M 50 300 C 150 550, 250 50, 350 300 S 450 550, 550 300 C 650 50, 750 550, 850 300 S 950 50, 950 300" />
+            </defs>
+            <use xlink:href="#maze-path-d" class="path-hitbox" />
+            <use xlink:href="#maze-path-d" class="path-visual" />
+            <circle id="start-point" cx="50" cy="300" r="15" class="active"/>
+            <circle id="finish-point" cx="950" cy="300" r="15" />
+        </svg>
+
+        <!-- Şifre toast'ı -->
+        <div id="pw-toast" class="hide" aria-hidden="true"></div>
+    </div>
+</div>
+
+<div id="start-modal" class="modal active">
+    <div class="modal-content">
+        <button id="close-start-modal-btn" class="close-modal-btn" title="Kapat">&times;</button>
+        <h2>Neon Patika</h2>
+        <p>Hassasiyetini ve hızını test et! Fareni yoldan çıkarmadan bitişe en kısa sürede ulaş. <b>Oyun, farenin yeşil başlangıç noktasına dokunmasıyla başlar.</b></p>
+        <button id="start-btn-2" class="btn good" style="margin-top: 15px; padding: 12px 20px; font-size: 1rem;">OYUNA BAŞLA</button>
+    </div>
+</div>
+
+<div id="end-modal" class="modal">
+    <div class="modal-content">
+        <button id="close-end-modal-btn" class="close-modal-btn" title="Kapat">&times;</button>
+        <h2 id="end-title">🎉 Patikadan Çıktın!</h2>
+        <p id="end-score">Tekrar denemek için butona tıkla.</p>
+        <div id="password-section" style="display:none;">
+            <p>Bölüm şifreniz:</p>
+            <div class="pass-box">
+                <span id="password" class="pass">—</span>
+                <button id="copy-btn" class="btn">Kopyala</button>
+            </div>
+        </div>
+        <p style="color:var(--muted); font-size: 0.9rem; margin-top: 15px;">Yeni bir deneme için <b>YENİDEN BAŞLA</b> butonunu kullan.</p>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// --- DOM Referansları
+const startModal = document.getElementById('start-modal');
+const endModal = document.getElementById('end-modal');
+const startBtn = document.getElementById('start-btn');
+const startBtn2 = document.getElementById('start-btn-2');
+const closeStartModalBtn = document.getElementById('close-start-modal-btn');
+const closeEndModalBtn = document.getElementById('close-end-modal-btn');
+
+const timerDisplay = document.getElementById('timer-display');
+const bestTimeDisplay = document.getElementById('best-time-display');
+const endTitle = document.getElementById('end-title');
+const endScore = document.getElementById('end-score');
+const passwordSection = document.getElementById('password-section');
+const passwordDisplay = document.getElementById('password');
+const copyBtn = document.getElementById('copy-btn');
+const uiFullscreenBtn = document.getElementById('ui-fullscreen-btn');
+const iconExpand = document.getElementById('icon-expand');
+const iconCompress = document.getElementById('icon-compress');
+
+const gameArea = document.getElementById('game-area');
+const pathHitbox = document.querySelector('.path-hitbox');
+const startPoint = document.getElementById('start-point');
+const finishPoint = document.getElementById('finish-point');
+const pwToast = document.getElementById('pw-toast');
+
+// --- Oyun Ayarları ve Durumu
+const PASSWORD_KEY = 'NEON-PATHFINDER-2025';
+const LS_BEST_TIME = 'neonpath_best_time';
+
+let isGameRunning = false;      // Sayaç çalışıyor mu?
+let gameStartedOnce = false;    // Yeşil noktaya dokunuldu mu?
+let timerInterval = null;
+let startTime = 0;
+let bestTime = localStorage.getItem(LS_BEST_TIME) ? parseFloat(localStorage.getItem(LS_BEST_TIME)) : Infinity;
+
+// Yoldan çıkma toleransı (UX iyileştirme)
+let lossTimer = null;
+const PATH_LEAVE_TOLERANCE = 120; // ms
+
+// --- Zamanlayıcı
+function updateTimer() {
+    if (!isGameRunning) return;
+    const elapsed = (Date.now() - startTime) / 1000;
+    timerDisplay.textContent = `Süre: ${elapsed.toFixed(2)}`;
+}
+
+// --- Oyun Akışı
+function startGame() {
+    startModal.classList.remove('active');
+    endModal.classList.remove('active');
+
+    // Durumu sıfırla
+    if (timerInterval) clearInterval(timerInterval);
+    cancelLossTimer();
+    isGameRunning = false;
+    gameStartedOnce = false;
+    startTime = 0;
+    timerDisplay.textContent = `Süre: 0.00`;
+    gameArea.classList.remove('game-lost', 'game-won');
+    startPoint.classList.add('active');
+    hideToast();
+
+    // Event dinleyicileri
+    startPoint.addEventListener('mouseover', handleGameStartInitial, { once: true });
+    gameArea.addEventListener('mouseleave', handleGameLoss);
+    finishPoint.addEventListener('mouseover', handleGameWin);
+
+    // Toleranslı yoldan çıkma/girme
+    pathHitbox.addEventListener('mouseover', cancelLossTimer);
+    pathHitbox.addEventListener('mouseout', pathMouseOutHandler);
+}
+
+function handleGameStartInitial() {
+    if (isGameRunning) return;
+    isGameRunning = true;
+    gameStartedOnce = true;
+    startTime = Date.now();
+    timerInterval = setInterval(updateTimer, 50);
+    startPoint.classList.remove('active');
+}
+
+function pathMouseOutHandler(e){
+    if (!isGameRunning) return;
+    // Minik sapmalarda hemen kaybetme — tolerans ver
+    cancelLossTimer();
+    lossTimer = setTimeout(() => handleGameLoss(e), PATH_LEAVE_TOLERANCE);
+}
+
+function handleGameLoss(e) {
+    if (!isGameRunning) return;
+    // Bitiş noktasına giderken 'mouseout' da tetiklenebilir; kazanmada zaten win devreye girer.
+    if (e && e.target && e.target.id === 'finish-point') return;
+    endGame(false);
+}
+
+function handleGameWin() {
+    if (!isGameRunning) return;
+    showPasswordToast(); // Mor noktada mini şifre balonu
+    endGame(true);
+}
+
+function endGame(isWin) {
+    if (!isGameRunning && gameStartedOnce) return; // tekrar tetiklemeyi engelle
+    isGameRunning = false;
+    clearInterval(timerInterval);
+    cancelLossTimer();
+
+    // Event temizliği
+    startPoint.removeEventListener('mouseover', handleGameStartInitial);
+    gameArea.removeEventListener('mouseleave', handleGameLoss);
+    finishPoint.removeEventListener('mouseover', handleGameWin);
+    pathHitbox.removeEventListener('mouseover', cancelLossTimer);
+    pathHitbox.removeEventListener('mouseout', pathMouseOutHandler);
+
+    if (isWin) {
+        const finalTime = (Date.now() - startTime) / 1000;
+        gameArea.classList.add('game-won');
+        endTitle.textContent = '🎉 Başardın!';
+        endScore.textContent = `Patikayı ${finalTime.toFixed(2)} saniyede tamamladın.`;
+        passwordSection.style.display = 'block';
+        passwordDisplay.textContent = PASSWORD_KEY;
+
+        if (finalTime < bestTime) {
+            bestTime = finalTime;
+            localStorage.setItem(LS_BEST_TIME, bestTime);
+            updateBestTimeDisplay();
+        }
+    } else {
+        gameArea.classList.add('game-lost');
+        endTitle.textContent = '💥 Patikadan Çıktın!';
+        endScore.textContent = 'Hızını ve odağını koruyarak tekrar dene.';
+        passwordSection.style.display = 'none';
+    }
+
+    endModal.classList.add('active');
+}
+
+function updateBestTimeDisplay() {
+    if (bestTime === Infinity) bestTimeDisplay.textContent = 'En İyi: --.--';
+    else bestTimeDisplay.textContent = `En İyi: ${bestTime.toFixed(2)}`;
+}
+
+// --- Toast Yardımcıları
+function showPasswordToast() {
+  const finishRect = finishPoint.getBoundingClientRect();
+  const areaRect = gameArea.getBoundingClientRect();
+  const cx = finishRect.left + finishRect.width/2 - areaRect.left;
+  const cy = finishRect.top + finishRect.height/2 - areaRect.top;
+
+  pwToast.innerHTML = `Bölüm şifresi: <span class="k">${PASSWORD_KEY}</span>`;
+  pwToast.style.left = `${cx}px`;
+  pwToast.style.top  = `${cy}px`;
+  pwToast.classList.remove('hide');
+  pwToast.setAttribute('aria-hidden','false');
+
+  setTimeout(() => hideToast(), 2500);
+}
+function hideToast(){
+  pwToast.classList.add('hide');
+  pwToast.setAttribute('aria-hidden','true');
+}
+
+// --- Fullscreen & Clipboard
+function toggleFullscreen(){
+    if (!document.fullscreenElement){
+        document.documentElement.requestFullscreen().catch(err=>alert(`Tam ekran başlatılamadı: ${err.message}`));
+    } else if (document.exitFullscreen){
+        document.exitFullscreen();
+    }
+}
+function updateFullscreenIcon(){
+    const on = !!document.fullscreenElement;
+    iconExpand.style.display = on ? 'none' : 'block';
+    iconCompress.style.display = on ? 'block' : 'none';
+}
+function cancelLossTimer(){
+  if (lossTimer){ clearTimeout(lossTimer); lossTimer = null; }
+}
+copyBtn.addEventListener('click', async ()=>{
+    const t = passwordDisplay.textContent.trim();
+    if (!t || t === '—') return;
+    try{ await navigator.clipboard.writeText(t); copyBtn.textContent='✅ Kopyalandı'; }
+    catch{ copyBtn.textContent='❌ Hata'; }
+    setTimeout(()=> copyBtn.textContent='Kopyala', 1500);
+});
+
+// --- İlk Yükleme ve Event Bağlantıları
+uiFullscreenBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', updateFullscreenIcon);
+closeStartModalBtn.addEventListener('click', () => startModal.classList.remove('active'));
+closeEndModalBtn.addEventListener('click', () => {
+    endModal.classList.remove('active');
+    startGame();
+});
+startModal.addEventListener('click', (e) => {
+    if (e.target === startModal) startModal.classList.remove('active');
+});
+endModal.addEventListener('click', (e) => {
+    if (e.target === endModal) {
+        endModal.classList.remove('active');
+        startGame();
+    }
+});
+
+startBtn.addEventListener('click', startGame);
+startBtn2.addEventListener('click', startGame);
+
+window.onload = () => {
+    updateBestTimeDisplay();
+    startGame();
+};
+</script>
+</body>
+</html>
